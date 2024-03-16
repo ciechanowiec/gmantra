@@ -1,0 +1,134 @@
+[.text-justify]
+= Git Mantra
+:reproducible:
+:doctype: article
+:author: Herman Ciechanowiec
+:email: herman@ciechanowiec.eu
+:chapter-signifier:
+:sectnums:
+:sectnumlevels: 5
+:sectanchors:
+:toc: left
+:toclevels: 5
+:icons: font
+// Docinfo is used for foldable TOC.
+// -> For full usage example see https://github.com/remkop/picocli
+:docinfo: shared,private
+:linkcss:
+:stylesdir: https://www.ciechanowiec.eu/linux_mantra/
+:stylesheet: adoc-css-style.css
+
+== Overview
+
+_Git Mantra_ is a Maven plugin that enforces Git branch names and commit messages follow specified patterns. It works like Git hooks or other similar CI/CD solutions, but contrary to them the execution is performed directly as a part of a build process.
+
+== Plugin Purpose
+[upperalpha]
+. Software projects frequently require strict naming conventions for Git branches and specific patterns for commit messages to ensure a clean and manageable codebase. These conventions help in identifying the purpose of branches and the context of commits quickly, which is crucial for effective team collaboration and code review processes.
+
+. A common method to enforce these standards is through the use of Git hooks. Git hooks are scripts triggered by certain Git events, such as pre-commit or pre-push, allowing for automatic checks on Git branch names and commit messages. However, Git hooks have a notable drawback: they need to be set up individually by each developer on their local machine. This setup process is not only time-consuming but also prone to inconsistency, as there is no straightforward way to ensure every team member uses the same hook configurations.
+
+. Another method involves implementing these checks on the server-side or integrating them into CI/CD pipelines. However, this approach introduces a new element into the project setup, hence increases the setup complexity via decentralization of the project configuration. It also requires additional DevOps resources and infrastructure adjustments, which might not be available for all projects, especially those with limited access to server-side settings or those seeking to minimize infrastructure complexity.
+
+. _Git Mantra_, a Maven plugin, offers a solution to the described challenges by integrating directly into the build process, ensuring that Git branch names and commit messages follow specified patterns. Unlike Git hooks, _Git Mantra_ eliminates the need for separate installation and configuration by developers, providing uniform application of rules. Moreover, it avoids the decentralization of project configuration and additional infrastructure demands associated with CI/CD pipeline solutions. By leveraging the existing Maven project setup, _Git Mantra_ allows for embedding configuration within the familiar `pom.xml` files, streamlining the enforcement of code standards. This approach not only simplifies project management but also ensures code quality maintenance without the extra burden of DevOps tasks or the need for modifying existing infrastructure.
+
+== Usage
+=== `pom.xml`
+To use _Git Mantra_, add it to the `plugins` section of a relevant `pom.xml` file. The plugin is published in the official Maven repository, hence will be downloaded automatically during the build.
+
+_Git Mantra_ has a single predefined goal: `validate`. This goal should be specified in the plugin declaration:
+
+[source, xml]
+----
+<plugins>
+  ...
+    <plugin>
+        <groupId>eu.ciechanowiec</groupId>
+        <artifactId>gmantra-maven-plugin</artifactId>
+        <version>1.0.0</version>
+        <executions>
+            <execution>
+                <goals>
+                    <goal>validate</goal>
+                </goals>
+            </execution>
+        </executions>
+    </plugin>
+  ...
+<plugins>
+----
+
+=== Configuration
+_Git Mantra_ includes a default configuration that allows all Git branch names and commit messages. It means that by default, the plugin doesn't impose any limitations. This configuration can be customized as follows:
+
+[source, xml]
+----
+<plugins>
+  ...
+    <plugin>
+        <groupId>eu.ciechanowiec</groupId>
+        <artifactId>gmantra-maven-plugin</artifactId>
+        <version>1.0.0</version>
+        <executions>
+            <execution>
+                <goals>
+                    <goal>validate</goal>
+                </goals>
+            </execution>
+        </executions>
+        <configuration>
+            <failOnViolations>false</failOnViolations> <1>
+            <allowedBranchesRegex>main|master|develop|test|(feature|bugfix)\/AG-[0-9]+\-.+|misc\/.+</allowedBranchesRegex> <2>
+            <allowedCommitMessagesRegex>(AG-[0-9]+|MISC): .+</allowedCommitMessagesRegex> <3>
+            <areCaseSensitiveMatches>false</areCaseSensitiveMatches> <4>
+            <startCommitHash>84a8m5ae</startCommitHash> <5>
+            <ignoreMergeCommits>false</ignoreMergeCommits> <6>
+        </configuration>
+    </plugin>
+  ...
+<plugins>
+----
+
+<1> `failOnViolations` - `true` if the build must fail in case of repository rule violations; `false` otherwise. Although if set to `false` violations will not cause the build to fail, they will still be reported in the logs as errors. The default value is `true`.
+<2> `allowedBranchesRegex` - A regular expression (regex) defining the allowed branch names. During the plugin's execution, it checks whether the name of the current branch matches the specified regex. If there is no match, a repository rule violation is reported. The default value is '_.*_', which means that by default, all branch names are allowed.
+<3> `allowedCommitMessagesRegex` - A regular expression (regex) for allowed commit messages. During the plugin's execution, it checks whether the commit messages match the specified regex. If there is no match, a repository rule violation is reported. Only the first line of a full commit message is verified; the rest of the message, if present, is ignored. The first line is everything up to the first pair of line feeds (LFs). The default value is '_.*_', indicating that by default, all commit messages are allowed.
+<4> `areCaseSensitiveMatches` - `true` if matches for branch names and commit messages must be performed in a case-sensitive manner; `false` otherwise. The default value is `true`.
+<5> `startCommitHash` - The hash of a Git commit that is treated as the starting point from which the checks related to commit messages will be performed. In other words, only the Git commit messages of the specified commit and all subsequent commits up to the HEAD are checked, while all commits preceding the specified commit are ignored.
+
+* The hash can be specified in both full and abbreviated forms.
+* By default, this value isn't set, and all commits are subject to validation.
+* If the commit with the specified hash doesn't exist, a warning is issued, and the plugin execution proceeds as if this value wasn't specified.
+
+<6> `ignoreMergeCommits` - `true` if merge commits should be ignored during the validation of commit messages, even if a merge commit was individually specified in the `startCommitHash` setting; `false` otherwise. The default value is `true`. This setting can be reasonable, among other reasons, when merge commits are performed in an automated manner by CI/CD tools.
+
+=== Execution
+[upperalpha]
+. By default, the execution of _Git Mantra_ is bound to the `validate` phase of the default lifecycle of a Maven build. This means, among other things, that the plugin will be executed automatically when commands such as `mvn clean test`, `mvn clean package`, or `mvn clean install` are run.
+. During its execution, _Git Mantra_ validates that the name of the Git branch currently checked out and the names of relevant commit messages follow the patterns specified in the plugin's configuration. Violations are logged in the build output as follows:
+
++
+----
+[INFO] Started validation by MessageValidator(repository=Repository[/home/herman/venus-project/.git], startCommitHash=, allowedPattern=feat: .+, ignoreMergeCommits=true)
+[ERROR] Validation result: ValidationResult(violations=[RequirementsViolation(message=This message: 'Added something new' from this commit: 'commit d99e3418d3878323bafebb33018cdda08d15c124 1710626263 -----sp' [2024-03-16 22:57:43] does not match this pattern: 'feat: .+')], isOK=false)
+[ERROR] This message: 'Added something new' from this commit: 'commit d99e3418d3878323bafebb33018cdda08d15c124 1710626263 -----sp' [2024-03-16 22:57:43] does not match this pattern: 'feat: .+'
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+----
+
+. To execute _Git Mantra_ independently of the entire build process, use the following command:
++
+    mvn gmantra:validate
++
+. Add the -X flag to the above command to run it in debug mode:
++
+    mvn gmantra:validate -X
+
+== License
+The program is subject to MIT No Attribution License
+
+Copyright © 2024 Herman Ciechanowiec
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.
+
+The Software is provided 'as is', without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the Software or the use or other dealings in the Software.
