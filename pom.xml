@@ -10,7 +10,7 @@
     <packaging>maven-plugin</packaging>
 
     <name>Git Mantra</name>
-    <description>Maven plugin that enforces git branch names and commit messages follow specified patterns</description>
+    <description>Maven plugin that enforces Git branch names and commit messages follow specified patterns</description>
     <url>https://github.com/ciechanowiec/gmantra</url>
     <inceptionYear>2024</inceptionYear>
 
